@@ -337,33 +337,28 @@ function F1(x0, x1, x2, x3) {
   return B1(T1[x0 & 255]) | (B1(T1[(x1 >> 8) & 255]) << 8) | (B1(T1[(x2 >> 16) & 255]) << 16) | (B1(T1[x3 >>> 24]) << 24);
 }
 
-function packBytes(octets) {
+function packBytes(octets, packed) {
   var i, j;
   var len = octets.length;
-  var b = new Array(len / 4);
 
   if (!octets || len % 4) return;
 
   for (i = 0, j = 0; j < len; j += 4) {
-    b[i++] = octets[j] | (octets[j + 1] << 8) | (octets[j + 2] << 16) | (octets[j + 3] << 24);
+    packed[i++] = octets[j] | (octets[j + 1] << 8) | (octets[j + 2] << 16) | (octets[j + 3] << 24);
   }
-
-  return b;
 }
 
-function unpackBytes(packed) {
+function unpackBytes(packed, octets) {
   var j;
   var i = 0,
     l = packed.length;
-  var r = new Array(l * 4);
 
   for (j = 0; j < l; j++) {
-    r[i++] = B0(packed[j]);
-    r[i++] = B1(packed[j]);
-    r[i++] = B2(packed[j]);
-    r[i++] = B3(packed[j]);
+    octets[i++] = B0(packed[j]);
+    octets[i++] = B1(packed[j]);
+    octets[i++] = B2(packed[j]);
+    octets[i++] = B3(packed[j]);
   }
-  return r;
 }
 
 // ------------------------------------------------
@@ -457,52 +452,48 @@ function keyExpansion(key) {
   };
 }
 
-function AESencrypt(block, ctx) {
-  var r;
-  var t0, t1, t2, t3;
+function AESencrypt(inp, out, ctx, b, t) {
+  var r, rounds = ctx.rounds;
 
-  var b = packBytes(block);
-  var rounds = ctx.rounds;
-  var b0 = b[0];
-  var b1 = b[1];
-  var b2 = b[2];
-  var b3 = b[3];
+  packBytes(inp, b);
 
   for (r = 0; r < rounds - 1; r++) {
-    t0 = b0 ^ ctx.rk[r][0];
-    t1 = b1 ^ ctx.rk[r][1];
-    t2 = b2 ^ ctx.rk[r][2];
-    t3 = b3 ^ ctx.rk[r][3];
+    t[0] = b[0] ^ ctx.rk[r][0];
+    t[1] = b[1] ^ ctx.rk[r][1];
+    t[2] = b[2] ^ ctx.rk[r][2];
+    t[3] = b[3] ^ ctx.rk[r][3];
 
-    b0 = T1[t0 & 255] ^ T2[(t1 >> 8) & 255] ^ T3[(t2 >> 16) & 255] ^ T4[t3 >>> 24];
-    b1 = T1[t1 & 255] ^ T2[(t2 >> 8) & 255] ^ T3[(t3 >> 16) & 255] ^ T4[t0 >>> 24];
-    b2 = T1[t2 & 255] ^ T2[(t3 >> 8) & 255] ^ T3[(t0 >> 16) & 255] ^ T4[t1 >>> 24];
-    b3 = T1[t3 & 255] ^ T2[(t0 >> 8) & 255] ^ T3[(t1 >> 16) & 255] ^ T4[t2 >>> 24];
+    b[0] = T1[t[0] & 255] ^ T2[(t[1] >> 8) & 255] ^ T3[(t[2] >> 16) & 255] ^ T4[t[3] >>> 24];
+    b[1] = T1[t[1] & 255] ^ T2[(t[2] >> 8) & 255] ^ T3[(t[3] >> 16) & 255] ^ T4[t[0] >>> 24];
+    b[2] = T1[t[2] & 255] ^ T2[(t[3] >> 8) & 255] ^ T3[(t[0] >> 16) & 255] ^ T4[t[1] >>> 24];
+    b[3] = T1[t[3] & 255] ^ T2[(t[0] >> 8) & 255] ^ T3[(t[1] >> 16) & 255] ^ T4[t[2] >>> 24];
   }
 
   // last round is special
   r = rounds - 1;
 
-  t0 = b0 ^ ctx.rk[r][0];
-  t1 = b1 ^ ctx.rk[r][1];
-  t2 = b2 ^ ctx.rk[r][2];
-  t3 = b3 ^ ctx.rk[r][3];
+  t[0] = b[0] ^ ctx.rk[r][0];
+  t[1] = b[1] ^ ctx.rk[r][1];
+  t[2] = b[2] ^ ctx.rk[r][2];
+  t[3] = b[3] ^ ctx.rk[r][3];
 
-  b[0] = F1(t0, t1, t2, t3) ^ ctx.rk[rounds][0];
-  b[1] = F1(t1, t2, t3, t0) ^ ctx.rk[rounds][1];
-  b[2] = F1(t2, t3, t0, t1) ^ ctx.rk[rounds][2];
-  b[3] = F1(t3, t0, t1, t2) ^ ctx.rk[rounds][3];
+  b[0] = F1(t[0], t[1], t[2], t[3]) ^ ctx.rk[rounds][0];
+  b[1] = F1(t[1], t[2], t[3], t[0]) ^ ctx.rk[rounds][1];
+  b[2] = F1(t[2], t[3], t[0], t[1]) ^ ctx.rk[rounds][2];
+  b[3] = F1(t[3], t[0], t[1], t[2]) ^ ctx.rk[rounds][3];
 
-  return unpackBytes(b);
+  unpackBytes(b, out);
 }
 
 function makeClass(length) {
 
   var c = function(key) {
     this.key = keyExpansion(key);
+    this.temp1 = new Uint32Array(this.blockSize / 4);
+    this.temp2 = new Uint32Array(this.blockSize / 4);
 
-    this.encrypt = function(block) {
-      return AESencrypt(block, this.key);
+    this.encrypt = function(inp, out) {
+      return AESencrypt(inp, out, this.key, this.temp1, this.temp2);
     };
   };
 

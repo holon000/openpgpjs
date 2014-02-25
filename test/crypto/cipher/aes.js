@@ -10,7 +10,10 @@ describe('AES Rijndael cipher test with test vectors from ecb_tbl.txt', function
   function test_aes(input, key, output) {
     var aes = new openpgp.crypto.cipher.aes128(util.bin2str(key));
 
-    var result = util.bin2str(aes.encrypt(new Uint8Array(input)));
+    var inp = new Uint8Array(input);
+    var out = new Uint8Array(inp.length);
+    aes.encrypt(inp, out);
+    var result = util.bin2str(out);
 
     return util.hexstrdump(result) == util.hexstrdump(util.bin2str(output));
   }

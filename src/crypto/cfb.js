@@ -62,7 +62,7 @@ module.exports = {
 
     // 2.  FR is encrypted to produce FRE (FR Encrypted).  This is the
     //     encryption of an all-zero value.
-    FRE = cipherfn.encrypt(FR);
+    cipherfn.encrypt(FR, FRE);
     // 3.  FRE is xored with the first BS octets of random data prefixed to
     //     the plaintext to produce C[1] through C[BS], the first BS octets
     //     of ciphertext.
@@ -77,7 +77,7 @@ module.exports = {
 
     // 5.  FR is encrypted to produce FRE, the encryption of the first BS
     //     octets of ciphertext.
-    FRE = cipherfn.encrypt(FR);
+    cipherfn.encrypt(FR, FRE);
 
     // 6.  The left two octets of FRE get xored with the next two octets of
     //     data that were prefixed to the plaintext.  This produces C[BS+1]
@@ -96,7 +96,7 @@ module.exports = {
       }
     }
     // 8.  FR is encrypted to produce FRE.
-    FRE = cipherfn.encrypt(FR);
+    cipherfn.encrypt(FR, FRE);
 
     if (resync) {
       // 9.  FRE is xored with the first 8 octets of the given plaintext, now
@@ -112,7 +112,7 @@ module.exports = {
         }
 
         // 11. FR is encrypted to produce FRE.
-        FRE = cipherfn.encrypt(FR);
+        cipherfn.encrypt(FR, FRE);
 
         // 12. FRE is xored with the next 8 octets of plaintext, to produce the
         // next 8 octets of ciphertext.  These are loaded into FR and the
@@ -141,7 +141,7 @@ module.exports = {
         tempCiphertextString = '';
 
         // 11. FR is encrypted to produce FRE.
-        FRE = cipherfn.encrypt(FR);
+        cipherfn.encrypt(FR, FRE);
 
         // 12. FRE is xored with the next 8 octets of plaintext, to produce the
         //     next 8 octets of ciphertext.  These are loaded into FR and the
@@ -177,19 +177,18 @@ module.exports = {
     var ablock = new Uint8Array(block_size);
     var i;
 
-
     // initialisation vector
     for (i = 0; i < block_size; i++) {
       iblock[i] = 0;
     }
 
-    iblock = cipherfn.encrypt(iblock);
+    cipherfn.encrypt(iblock, iblock);
     for (i = 0; i < block_size; i++) {
       ablock[i] = ciphertext.charCodeAt(i);
       iblock[i] ^= ablock[i];
     }
 
-    ablock = cipherfn.encrypt(ablock);
+    cipherfn.encrypt(ablock, ablock);
 
     return util.bin2str(iblock) +
       String.fromCharCode(ablock[0] ^ ciphertext.charCodeAt(block_size)) +
@@ -224,17 +223,16 @@ module.exports = {
       iblock[i] = 0;
     }
 
-    iblock = cipherfn.encrypt(iblock);
+    cipherfn.encrypt(iblock, iblock);
     for (i = 0; i < block_size; i++) {
       ablock[i] = ciphertext.charCodeAt(i);
       iblock[i] ^= ablock[i];
     }
 
-    ablock = cipherfn.encrypt(ablock);
+    cipherfn.encrypt(ablock, ablock);
 
     // test check octets
-    if (iblock[block_size - 2] != (ablock[0] ^ ciphertext.charCodeAt(block_size)) || iblock[block_size - 1] != (ablock[
-      1] ^ ciphertext.charCodeAt(block_size + 1))) {
+    if (iblock[block_size - 2] != (ablock[0] ^ ciphertext.charCodeAt(block_size)) || iblock[block_size - 1] != (ablock[1] ^ ciphertext.charCodeAt(block_size + 1))) {
       throw new Error('Invalid data.');
     }
 
@@ -250,7 +248,7 @@ module.exports = {
         iblock[i] = ciphertext.charCodeAt(i + 2);
       }
       for (n = block_size + 2; n < ciphertext.length; n += block_size) {
-        ablock = cipherfn.encrypt(iblock);
+        cipherfn.encrypt(iblock, ablock);
 
         for (i = 0; i < block_size && i + n < ciphertext.length; i++) {
           iblock[i] = ciphertext.charCodeAt(n + i);
@@ -262,7 +260,7 @@ module.exports = {
         iblock[i] = ciphertext.charCodeAt(i);
       }
       for (n = block_size; n < ciphertext.length; n += block_size) {
-        ablock = cipherfn.encrypt(iblock);
+        cipherfn.encrypt(iblock, ablock);
         for (i = 0; i < block_size && i + n < ciphertext.length; i++) {
           iblock[i] = ciphertext.charCodeAt(n + i);
           text += String.fromCharCode(ablock[i] ^ iblock[i]);
@@ -281,6 +279,7 @@ module.exports = {
   normalEncrypt: function(cipherfn, key, plaintext, iv) {
     cipherfn = new cipher[cipherfn](key);
     var block_size = cipherfn.blockSize;
+    var encblock = new Uint8Array(block_size);
 
     var blocki = '';
     var blockc = '';
@@ -289,7 +288,7 @@ module.exports = {
     var tempBlock = '';
     blockc = iv.substring(0, block_size);
     while (plaintext.length > block_size * pos) {
-      var encblock = cipherfn.encrypt(util.str2bin(blockc));
+      cipherfn.encrypt(util.str2bin(blockc), encblock);
       blocki = plaintext.substring((pos * block_size), (pos * block_size) + block_size);
       for (var i = 0; i < blocki.length; i++) {
         tempBlock += String.fromCharCode(blocki.charCodeAt(i) ^ encblock[i]);
@@ -305,6 +304,7 @@ module.exports = {
   normalDecrypt: function(cipherfn, key, ciphertext, iv) {
     cipherfn = new cipher[cipherfn](key);
     var block_size = cipherfn.blockSize;
+    var decblock = new Uint8Array(block_size);
 
     var blockp = '';
     var pos = 0;
@@ -318,7 +318,7 @@ module.exports = {
     else
       blockp = iv.substring(0, block_size);
     while (ciphertext.length > (block_size * pos)) {
-      var decblock = cipherfn.encrypt(util.str2bin(blockp));
+      cipherfn.encrypt(util.str2bin(blockp), decblock);
       blockp = ciphertext.substring((pos * (block_size)) + offset, (pos * (block_size)) + (block_size) + offset);
       for (i = 0; i < blockp.length; i++) {
         plaintext += String.fromCharCode(blockp.charCodeAt(i) ^ decblock[i]);
